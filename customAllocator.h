@@ -17,7 +17,6 @@ typedef struct Block
     bool free;
 } Block;
 
-Block* block_list = nullptr;
 
 void* customMalloc(size_t size);
 void customFree(void* ptr);
