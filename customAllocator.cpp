@@ -128,14 +128,36 @@ void customFree(void* ptr) {
 void* customCalloc(size_t nmemb, size_t size){
     // Allocate and initialize memory using your custom allocator
     // Return a pointer to the allocated memory
-    // Example: return calloc(nmemb, size);
-    return nullptr;
+    size_t total_size = num * size;
+
+    // Allocate memory using malloc
+    void* ptr = malloc(total_size);
+    if (ptr == NULL) {
+        return NULL; // Allocation failed
+    }
+
+    // Initialize the allocated memory to zero
+    memset(ptr, 0, total_size);
+
+    return ptr;
 }
 
 void* customRealloc(void* ptr, size_t size){
     // Reallocate memory using your custom allocator
     // Return a pointer to the reallocated memory
-    // Example: return realloc(ptr, size);
+
+    // If ptr is NULL, realloc should behave like malloc
+    if (ptr == NULL) {
+        return malloc(new_size);
+    }
+    
+    Block* block = (Block*)ptr - 1; // get pointer to the block header
+
+    if (block->size >= new_size)  // If the current block is large enough
+
+    {
+        return ptr;
+    }
     return nullptr;
 }
 
