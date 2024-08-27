@@ -3,19 +3,41 @@
 
 Block* block_list = nullptr;
 
+
+void print_block(Block* block){
+    printf("Block: %p\n", (void*)block);
+    printf("Size: %lu bytes\n", block->size);
+    printf("Free: %s\n", block->free? "Yes" : "No");
+    printf("Next: %p\n", (void*)block->next);
+}
+
+void print_list(){
+    Block* block;
+    for(block = block_list; block != nullptr; block = block->next){
+        printf("%p (%lu) -> ", (void*)block, block->size);
+    }
+    printf("NULL\n");
+}
 void merge_free_blocks(){
     // Merge adjacent free blocks
-    Block* block;
-    for(block = block_list; block != nullptr && block->next!= nullptr; block = block->next){
-        if(block->free && block->next->free){
+    Block* block = block_list;
+    while (block != NULL && block->next != NULL)
+    { 
+        if(block->free && block->next->free)
+        {
+            printf("Merging free blocks!\n");
             block->size = block->size + sizeof(Block) + block->next->size; // size of merged block
             block->next = block->next->next;
         }
+        else
+            block = block->next;
     }
 }
 
 void rm_block_from_linked_list(Block* b){
-    if(b == block_list) {
+    //printf("Removing block %p from list\n", (void*)b);
+    print_block(b);   
+    if (b == block_list) {
         block_list = block_list->next;
     } else {
         Block* prev = block_list;
@@ -28,42 +50,39 @@ void rm_block_from_linked_list(Block* b){
 
 void shrink_heap(){
 
-    // find the beginning of the segment that is free at the end of heap
-    Block* free_block = nullptr, *curr = block_list;
-    for(; curr != nullptr; curr = curr->next){
-        // save first free block after non-free
-        if (curr->free && free_block == nullptr)  
-            free_block = curr;
-        // delete if there is no sequence of free blocks
-        if(curr->free != 1)    
-            free_block=nullptr;
-    }
+    // check if last block is free
+    Block* last_block = nullptr, *curr = block_list;
+    for(; curr->next != nullptr; curr = curr->next);
+    last_block = curr;
 
     // Check if the last block is free
-    if (free_block->free) {
+    if (last_block->free == true) {
+        //printf("removing last block\n");
         // Check if the current break can be reduced
         void* program_break = sbrk(0); // Get current program break
-        void* block_end = (void*)((char*)free_block + sizeof(Block) + free_block->size);
+        void* block_end = (void*)((char*)last_block + sizeof(Block) + last_block->size);
 
         if (block_end == program_break) {
+            rm_block_from_linked_list(last_block);
             // Reduce the program break to release the memory back to the OS
-            if (sbrk((sizeof(Block) + free_block->size)) == SBRK_FAIL) {
-                // sbrk failed; could not reduce the break
+            if (sbrk((-1)*(sizeof(Block) + last_block->size)) == SBRK_FAIL) {
+                printf("sbrk failed; could not reduce the break\n");
                 return;
             }
-            rm_block_from_linked_list(free_block);
+            
         }
     }
 }
 
 void add_block_to_linked_list(Block* new_block){
+    //printf("Adding block with size %lu to list\n", new_block->size);
     if(block_list == nullptr) {
-        printf("Initialized block list\n");
+        //printf("Initialized block list\n");
         block_list = new_block;
     } else {
         // Add the new block to the end of the linked list
         Block* block;
-        for(block = block_list; block != NULL; block = block->next);
+        for(block = block_list; block->next != NULL; block = block->next);
         block->next = new_block;
     }
 }
@@ -71,6 +90,7 @@ void add_block_to_linked_list(Block* new_block){
 void* customMalloc(size_t size) {
     // Allocate memory using your custom allocator
     // Return a pointer to the allocated memory
+    
     if (size<=0){
         printf("<malloc error>: passed nonpositive size\n");
         return NULL;
@@ -81,6 +101,9 @@ void* customMalloc(size_t size) {
         printf("<malloc error>: out of memory\n");
         return NULL;
     }
+
+
+    print_list();
     return block;
 }
 
@@ -90,7 +113,8 @@ void customFree(void* ptr) {
         return;
     }
     Block* block = (Block*)ptr - 1; // get pointer to the block header
-    if (block->free) {
+    
+    if (block->free == true) {
         printf("<free error>: trying to free already freed memory\n");
         return;
     }
@@ -115,6 +139,8 @@ void* customRealloc(void* ptr, size_t size){
     return nullptr;
 }
 
+
+// return ptr to the beginning of the data, after header
 Block* findFreeBlock(size_t size){
     // find best fit block
     Block* best_fit_block = nullptr;
@@ -129,15 +155,15 @@ Block* findFreeBlock(size_t size){
     }
 
     if(best_fit_block != nullptr){
-        printf("found best_fit_block = size %lu\n", best_fit_block->size);
+        //printf("found best_fit_block = size %lu\n", best_fit_block->size);
         return best_fit_block;
     }else{
         // No suitable block found, request more memory from the OS
         best_fit_block = requestSpace(size);
-        add_block_to_linked_list(best_fit_block);
-        if(best_fit_block == nullptr){
+        if(best_fit_block == NULL){
             printf("Fatal ERROR!\n");
         }
+        add_block_to_linked_list(best_fit_block);
         // return pointer to the beginning of the data block
         return best_fit_block + 1;
     }
@@ -145,7 +171,7 @@ Block* findFreeBlock(size_t size){
 
 Block* requestSpace(size_t size){
     // Request more memory from the operating system and create a new block
-    // Return a pointer to the new block or NULL if memory allocation fails
+    // Return a pointer to the new block (start of header) or NULL if memory allocation fails
     Block* curr = (Block*)sbrk(0);
     void * result = sbrk(sizeof(Block)+ size);
     if (result == SBRK_FAIL) { // sbrk failed
@@ -155,6 +181,6 @@ Block* requestSpace(size_t size){
     // Initialize the block
     curr->size = size;
     curr->next = NULL;
-    curr->free = 0;
+    curr->free = false;
     return curr;
 }
